@@ -52,6 +52,52 @@ function requireOrderedIds(value: unknown) {
   return ids;
 }
 
+function requireRecord(value: unknown, field: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${field} must be an object.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function requireArray(value: unknown, field: string, limit: number) {
+  if (!Array.isArray(value)) throw new Error(`${field} must be an array.`);
+  if (value.length > limit) throw new Error(`${field} exceeds the ${limit}-record limit.`);
+  return value;
+}
+
+function requireInteger(value: unknown, field: string, minimum = 0) {
+  if (!Number.isInteger(value) || Number(value) < minimum) {
+    throw new Error(`${field} must be an integer of at least ${minimum}.`);
+  }
+  return Number(value);
+}
+
+function requireNullableString(value: unknown, field: string) {
+  if (value === null) return null;
+  if (typeof value !== "string") throw new Error(`${field} must be a string or null.`);
+  return value;
+}
+
+function requireString(value: unknown, field: string, limit: number) {
+  if (typeof value !== "string") throw new Error(`${field} must be a string.`);
+  if (value.length > limit) throw new Error(`${field} exceeds ${limit} characters.`);
+  return value;
+}
+
+function requireUniqueIds(records: Array<{ id: string }>, field: string) {
+  if (new Set(records.map((record) => record.id)).size !== records.length) {
+    throw new Error(`${field} contains duplicate UUIDs.`);
+  }
+}
+
+function chunks<T>(items: T[], size: number) {
+  const result: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    result.push(items.slice(index, index + size));
+  }
+  return result;
+}
+
 async function migrateDatabase() {
   const db = env.DB;
   const columns = await db
@@ -335,6 +381,214 @@ export async function loadProfile(): Promise<AptitudeProfile> {
     questions: questionRows.results.map(mapQuestion),
     responses: responseRows.results.map(mapResponse),
   };
+}
+
+function validateImportedProfile(value: unknown): AptitudeProfile {
+  const root = requireRecord(value, "profile export");
+  if (root.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+    throw new Error(`Only schema version ${CURRENT_SCHEMA_VERSION} exports can be imported.`);
+  }
+
+  const profileInput = requireRecord(root.profile, "profile");
+  const profile: ProfileRecord = {
+    id: requireUuid(profileInput.id, "profile.id"),
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    title: requireNonEmpty(profileInput.title, "profile.title").slice(0, 160),
+    createdAt: requireString(profileInput.createdAt, "profile.createdAt", 80),
+    updatedAt: requireString(profileInput.updatedAt, "profile.updatedAt", 80),
+  };
+
+  const questionSets = requireArray(root.questionSets, "questionSets", 100).map(
+    (value, index): QuestionSetRecord => {
+      const record = requireRecord(value, `questionSets[${index}]`);
+      return {
+        id: requireUuid(record.id, `questionSets[${index}].id`),
+        profileId: requireUuid(record.profileId, `questionSets[${index}].profileId`),
+        code: requireNonEmpty(record.code, `questionSets[${index}].code`).slice(0, 120),
+        title: requireNonEmpty(record.title, `questionSets[${index}].title`).slice(0, 120),
+        description: requireString(
+          record.description,
+          `questionSets[${index}].description`,
+          2000,
+        ),
+        position: requireInteger(record.position, `questionSets[${index}].position`),
+        archivedAt: requireNullableString(
+          record.archivedAt,
+          `questionSets[${index}].archivedAt`,
+        ),
+        createdAt: requireString(record.createdAt, `questionSets[${index}].createdAt`, 80),
+        updatedAt: requireString(record.updatedAt, `questionSets[${index}].updatedAt`, 80),
+      };
+    },
+  );
+
+  const questions = requireArray(root.questions, "questions", 2000).map(
+    (value, index): QuestionRecord => {
+      const record = requireRecord(value, `questions[${index}]`);
+      return {
+        id: requireUuid(record.id, `questions[${index}].id`),
+        questionSetId: requireUuid(
+          record.questionSetId,
+          `questions[${index}].questionSetId`,
+        ),
+        code: requireNonEmpty(record.code, `questions[${index}].code`).slice(0, 160),
+        title: requireNonEmpty(record.title, `questions[${index}].title`).slice(0, 160),
+        detail: requireString(record.detail, `questions[${index}].detail`, 6000),
+        position: requireInteger(record.position, `questions[${index}].position`),
+        archivedAt: requireNullableString(
+          record.archivedAt,
+          `questions[${index}].archivedAt`,
+        ),
+        createdAt: requireString(record.createdAt, `questions[${index}].createdAt`, 80),
+        updatedAt: requireString(record.updatedAt, `questions[${index}].updatedAt`, 80),
+      };
+    },
+  );
+
+  const responses = requireArray(root.responses, "responses", 2000).map(
+    (value, index): ResponseRecord => {
+      const record = requireRecord(value, `responses[${index}]`);
+      return {
+        id: requireUuid(record.id, `responses[${index}].id`),
+        questionId: requireUuid(record.questionId, `responses[${index}].questionId`),
+        ability: validateRating("ability", record.ability),
+        energy: validateRating("energy", record.energy),
+        criticality: validateRating("criticality", record.criticality),
+        note: requireString(record.note, `responses[${index}].note`, 12000),
+        createdAt: requireString(record.createdAt, `responses[${index}].createdAt`, 80),
+        updatedAt: requireString(record.updatedAt, `responses[${index}].updatedAt`, 80),
+      };
+    },
+  );
+
+  requireUniqueIds(questionSets, "questionSets");
+  requireUniqueIds(questions, "questions");
+  requireUniqueIds(responses, "responses");
+
+  if (questionSets.some((record) => record.profileId !== profile.id)) {
+    throw new Error("Every question set must belong to the imported profile UUID.");
+  }
+  const questionSetIds = new Set(questionSets.map((record) => record.id));
+  if (questions.some((record) => !questionSetIds.has(record.questionSetId))) {
+    throw new Error("Every question must refer to an imported question-set UUID.");
+  }
+  const questionIds = new Set(questions.map((record) => record.id));
+  if (responses.some((record) => !questionIds.has(record.questionId))) {
+    throw new Error("Every response must refer to an imported question UUID.");
+  }
+  if (new Set(responses.map((record) => record.questionId)).size !== responses.length) {
+    throw new Error("The import contains more than one response for a question.");
+  }
+  if (responses.length !== questions.length) {
+    throw new Error("Every imported question must have exactly one response.");
+  }
+
+  return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    profile,
+    questionSets,
+    questions,
+    responses,
+  };
+}
+
+export async function importProfile(value: unknown): Promise<AptitudeProfile> {
+  const imported = validateImportedProfile(value);
+  await ensureDatabase();
+  const db = env.DB;
+  const writes = [
+    db.prepare("DELETE FROM profiles"),
+    db
+      .prepare(
+        `INSERT INTO profiles (id, schema_version, title, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        imported.profile.id,
+        CURRENT_SCHEMA_VERSION,
+        imported.profile.title,
+        imported.profile.createdAt,
+        imported.profile.updatedAt,
+      ),
+  ];
+
+  for (const group of chunks(imported.questionSets, 10)) {
+    const placeholders = group.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+    writes.push(
+      db
+        .prepare(
+          `INSERT INTO question_sets
+            (id, profile_id, code, title, description, position, archived_at, created_at, updated_at)
+           VALUES ${placeholders}`,
+        )
+        .bind(
+          ...group.flatMap((record) => [
+            record.id,
+            record.profileId,
+            record.code,
+            record.title,
+            record.description,
+            record.position,
+            record.archivedAt,
+            record.createdAt,
+            record.updatedAt,
+          ]),
+        ),
+    );
+  }
+
+  for (const group of chunks(imported.questions, 10)) {
+    const placeholders = group.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+    writes.push(
+      db
+        .prepare(
+          `INSERT INTO questions
+            (id, question_set_id, code, title, detail, position, archived_at, created_at, updated_at)
+           VALUES ${placeholders}`,
+        )
+        .bind(
+          ...group.flatMap((record) => [
+            record.id,
+            record.questionSetId,
+            record.code,
+            record.title,
+            record.detail,
+            record.position,
+            record.archivedAt,
+            record.createdAt,
+            record.updatedAt,
+          ]),
+        ),
+    );
+  }
+
+  for (const group of chunks(imported.responses, 12)) {
+    const placeholders = group.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+    writes.push(
+      db
+        .prepare(
+          `INSERT INTO responses
+            (id, question_id, ability, energy, criticality, note, created_at, updated_at)
+           VALUES ${placeholders}`,
+        )
+        .bind(
+          ...group.flatMap((record) => [
+            record.id,
+            record.questionId,
+            record.ability,
+            record.energy,
+            record.criticality,
+            record.note,
+            record.createdAt,
+            record.updatedAt,
+          ]),
+        ),
+    );
+  }
+
+  await db.batch(writes);
+  await db.prepare("PRAGMA optimize").run();
+  return loadProfile();
 }
 
 function validateRating(field: string, value: unknown) {

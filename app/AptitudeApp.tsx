@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type ChangeEvent,
   type KeyboardEvent,
   useEffect,
   useMemo,
@@ -154,6 +155,7 @@ export function AptitudeApp() {
   const [showArchived, setShowArchived] = useState(false);
   const saveTail = useRef<Promise<void>>(Promise.resolve());
   const saveVersion = useRef(0);
+  const importInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -354,6 +356,44 @@ export function AptitudeApp() {
     });
   }
 
+  async function importJson(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!window.confirm("Replace this profile with the selected JSON export? Export the current profile first if you need a backup.")) {
+      return;
+    }
+
+    setSaveState("saving");
+    setErrorMessage("");
+    try {
+      const imported = JSON.parse(await file.text());
+      const response = await fetch("/api/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(imported),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "The profile could not be imported.");
+
+      const loaded = body as AptitudeProfile;
+      profileRef.current = loaded;
+      setProfile(loaded);
+      const currentSetExists = loaded.questionSets.some(
+        (questionSet) => questionSet.id === selectedSetId && !questionSet.archivedAt,
+      );
+      if (!currentSetExists) {
+        const firstActive = loaded.questionSets.find((questionSet) => !questionSet.archivedAt);
+        setSelectedSetId(firstActive?.id ?? loaded.questionSets[0]?.id ?? null);
+      }
+      setSaveState("saved");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "The profile could not be imported.");
+      setSaveState("error");
+    }
+  }
+
   if (!profile) {
     return (
       <main className="loading-shell">
@@ -442,6 +482,16 @@ export function AptitudeApp() {
           <a className="text-link" href="/api/export" download>
             Export JSON ↓
           </a>
+          <button className="secondary-button" onClick={() => importInput.current?.click()}>
+            Import JSON ↑
+          </button>
+          <input
+            ref={importInput}
+            className="visually-hidden"
+            type="file"
+            accept="application/json,.json"
+            onChange={importJson}
+          />
         </div>
       </aside>
 

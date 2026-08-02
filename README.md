@@ -12,7 +12,8 @@ npm run dev
 
 Open <http://localhost:3000>. The local D1 database persists under the ignored
 `.wrangler/` directory. Use **Export JSON** in the app to download a portable,
-schema-versioned snapshot.
+schema-versioned snapshot. **Import JSON** validates and atomically restores a
+snapshot, including its stable UUIDs, ratings, notes, ordering, and archive state.
 
 ## Rating scales
 
