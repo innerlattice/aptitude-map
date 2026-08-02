@@ -37,14 +37,14 @@ export interface ResponseRecord {
   questionId: string;
   ability: RatingValue;
   energy: RatingValue;
-  importance: RatingValue;
+  criticality: RatingValue;
   note: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface AptitudeProfile {
-  schemaVersion: 1;
+  schemaVersion: 2;
   profile: ProfileRecord;
   questionSets: QuestionSetRecord[];
   questions: QuestionRecord[];
@@ -55,7 +55,7 @@ export type Mutation =
   | {
       type: "updateResponse";
       responseId: string;
-      field: "ability" | "energy" | "importance" | "note";
+      field: "ability" | "energy" | "criticality" | "note";
       value: number | string | null;
     }
   | {

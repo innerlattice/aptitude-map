@@ -12,6 +12,15 @@ import type {
 } from "@/lib/types";
 
 const DEFAULT_PROFILE_TITLE = "My aptitude map";
+const CURRENT_SCHEMA_VERSION = 2;
+
+const evtTitleReplacements = [
+  ["Pioneer: discovering", "Explorer: discovering"],
+  ["Pioneer: experimenting", "Explorer: experimenting"],
+  ["Settler: selecting", "Villager: selecting"],
+  ["Settler: productizing", "Villager: productizing"],
+  ["Settler: transferring", "Villager: transferring"],
+] as const;
 
 function now() {
   return new Date().toISOString();
@@ -43,6 +52,98 @@ function requireOrderedIds(value: unknown) {
   return ids;
 }
 
+async function migrateDatabase() {
+  const db = env.DB;
+  const columns = await db
+    .prepare("PRAGMA table_info(responses)")
+    .all<{ name: string }>();
+  const columnNames = new Set(columns.results.map((column) => column.name));
+
+  if (columnNames.has("importance") && !columnNames.has("criticality")) {
+    await db.prepare("ALTER TABLE responses RENAME COLUMN importance TO criticality").run();
+  } else if (columnNames.has("importance") && columnNames.has("criticality")) {
+    await db
+      .prepare("UPDATE responses SET criticality = COALESCE(criticality, importance)")
+      .run();
+  }
+
+  const timestamp = now();
+  await db.batch([
+    db
+      .prepare(
+        `UPDATE question_sets
+         SET code = 'EVT', updated_at = ?
+         WHERE code = 'WRD'
+           AND title = 'Pioneer, Settler & Town Planner modes'
+           AND NOT EXISTS (
+             SELECT 1 FROM question_sets existing
+             WHERE existing.profile_id = question_sets.profile_id
+               AND existing.code = 'EVT'
+           )`,
+      )
+      .bind(timestamp),
+    db
+      .prepare(
+        `UPDATE question_sets
+         SET title = 'Explorers, Villagers & Town Planners', updated_at = ?
+         WHERE code = 'EVT'
+           AND title = 'Pioneer, Settler & Town Planner modes'`,
+      )
+      .bind(timestamp),
+  ]);
+
+  const evtSetQuery = `SELECT id FROM question_sets
+    WHERE code = 'EVT' AND title = 'Explorers, Villagers & Town Planners'`;
+  const ontologyWrites = Array.from({ length: 9 }, (_, offset) => {
+    const index = offset + 1;
+    return (
+      db
+        .prepare(
+          `UPDATE questions
+           SET code = ?, updated_at = ?
+           WHERE question_set_id IN (${evtSetQuery})
+             AND code = ?
+             AND NOT EXISTS (
+               SELECT 1 FROM questions existing
+               WHERE existing.question_set_id = questions.question_set_id
+                 AND existing.code = ?
+             )`,
+        )
+        .bind(`EVT-${index}`, timestamp, `WRD-${index}`, `EVT-${index}`)
+    );
+  });
+
+  for (const [oldTitle, newTitle] of evtTitleReplacements) {
+    ontologyWrites.push(
+      db
+        .prepare(
+          `UPDATE questions
+           SET title = ?, updated_at = ?
+           WHERE question_set_id IN (${evtSetQuery}) AND title = ?`,
+        )
+        .bind(newTitle, timestamp, oldTitle),
+    );
+  }
+
+  ontologyWrites.push(
+    db
+      .prepare(
+        `UPDATE questions
+         SET detail = REPLACE(detail, 'unfinished pioneer work', 'unfinished explorer work'),
+             updated_at = ?
+         WHERE question_set_id IN (${evtSetQuery})
+           AND detail LIKE '%unfinished pioneer work%'`,
+      )
+      .bind(timestamp),
+  );
+
+  await db.batch(ontologyWrites);
+  await db
+    .prepare("UPDATE profiles SET schema_version = ? WHERE schema_version < ?")
+    .bind(CURRENT_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION)
+    .run();
+}
+
 export async function ensureDatabase() {
   const db = env.DB;
   if (!db) {
@@ -51,6 +152,7 @@ export async function ensureDatabase() {
 
   await db.batch(schemaStatements.map((statement) => db.prepare(statement)));
   await db.prepare("PRAGMA foreign_keys = ON").run();
+  await migrateDatabase();
 
   const existing = await db
     .prepare("SELECT id FROM profiles ORDER BY created_at LIMIT 1")
@@ -64,9 +166,15 @@ export async function ensureDatabase() {
     db
       .prepare(
         `INSERT INTO profiles (id, schema_version, title, created_at, updated_at)
-         VALUES (?, 1, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?)`,
       )
-      .bind(profileId, DEFAULT_PROFILE_TITLE, timestamp, timestamp),
+      .bind(
+        profileId,
+        CURRENT_SCHEMA_VERSION,
+        DEFAULT_PROFILE_TITLE,
+        timestamp,
+        timestamp,
+      ),
   ];
 
   seedQuestionSets.forEach((set, setIndex) => {
@@ -114,7 +222,7 @@ export async function ensureDatabase() {
         db
           .prepare(
             `INSERT INTO responses
-              (id, question_id, ability, energy, importance, note, created_at, updated_at)
+              (id, question_id, ability, energy, criticality, note, created_at, updated_at)
              VALUES (?, ?, NULL, NULL, NULL, '', ?, ?)`,
           )
           .bind(randomUUID(), questionId, timestamp, timestamp),
@@ -175,7 +283,7 @@ function mapResponse(row: Record<string, unknown>): ResponseRecord {
     questionId: String(row.question_id),
     ability: nullableNumber(row.ability),
     energy: nullableNumber(row.energy),
-    importance: nullableNumber(row.importance),
+    criticality: nullableNumber(row.criticality),
     note: String(row.note ?? ""),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
@@ -221,7 +329,7 @@ export async function loadProfile(): Promise<AptitudeProfile> {
   if (!profileRow) throw new Error("The aptitude profile could not be loaded.");
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     profile: mapProfile(profileRow),
     questionSets: setRows.results.map(mapQuestionSet),
     questions: questionRows.results.map(mapQuestion),
@@ -235,7 +343,7 @@ function validateRating(field: string, value: unknown) {
   const ranges: Record<string, [number, number]> = {
     ability: [0, 5],
     energy: [-2, 2],
-    importance: [0, 3],
+    criticality: [0, 3],
   };
   const [min, max] = ranges[field];
   if (Number(value) < min || Number(value) > max) {
@@ -259,7 +367,7 @@ export async function applyMutation(input: Mutation): Promise<AptitudeProfile> {
   switch (input.type) {
     case "updateResponse": {
       const id = requireUuid(input.responseId, "responseId");
-      if (!["ability", "energy", "importance", "note"].includes(input.field)) {
+      if (!["ability", "energy", "criticality", "note"].includes(input.field)) {
         throw new Error("Unknown response field.");
       }
       const value =
@@ -357,7 +465,7 @@ export async function applyMutation(input: Mutation): Promise<AptitudeProfile> {
         db
           .prepare(
             `INSERT INTO responses
-              (id, question_id, ability, energy, importance, note, created_at, updated_at)
+              (id, question_id, ability, energy, criticality, note, created_at, updated_at)
              VALUES (?, ?, NULL, NULL, NULL, '', ?, ?)`,
           )
           .bind(randomUUID(), questionId, timestamp, timestamp),

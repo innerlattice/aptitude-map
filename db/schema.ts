@@ -9,7 +9,7 @@ import {
 
 export const profiles = sqliteTable("profiles", {
   id: text("id").primaryKey(),
-  schemaVersion: integer("schema_version").notNull().default(1),
+  schemaVersion: integer("schema_version").notNull().default(2),
   title: text("title").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -67,7 +67,7 @@ export const responses = sqliteTable(
       .references(() => questions.id, { onDelete: "cascade" }),
     ability: integer("ability"),
     energy: integer("energy"),
-    importance: integer("importance"),
+    criticality: integer("criticality"),
     note: text("note").notNull().default(""),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -83,8 +83,8 @@ export const responses = sqliteTable(
       sql`${table.energy} is null or (${table.energy} >= -2 and ${table.energy} <= 2)`,
     ),
     check(
-      "responses_importance_range",
-      sql`${table.importance} is null or (${table.importance} >= 0 and ${table.importance} <= 3)`,
+      "responses_criticality_range",
+      sql`${table.criticality} is null or (${table.criticality} >= 0 and ${table.criticality} <= 3)`,
     ),
   ],
 );

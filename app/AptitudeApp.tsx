@@ -36,12 +36,12 @@ const energyOptions = [
   ["2", "2 — Love"],
 ] as const;
 
-const importanceOptions = [
+const criticalityOptions = [
   ["", "? — Unset"],
   ["0", "0 — Irrelevant"],
   ["1", "1 — Useful"],
-  ["2", "2 — Important"],
-  ["3", "3 — Critical"],
+  ["2", "2 — Material"],
+  ["3", "3 — Mission-critical"],
 ] as const;
 
 function cloneProfile(profile: AptitudeProfile) {
@@ -237,7 +237,7 @@ export function AptitudeApp() {
       response?.ability !== null &&
       response?.ability !== undefined &&
       response.energy !== null &&
-      response.importance !== null
+      response.criticality !== null
     );
   }).length;
   const progress = activeQuestions.length
@@ -250,7 +250,7 @@ export function AptitudeApp() {
 
   function updateResponse(
     response: ResponseRecord,
-    field: "ability" | "energy" | "importance" | "note",
+    field: "ability" | "energy" | "criticality" | "note",
     value: number | string | null,
   ) {
     updateLocal((draft) => {
@@ -263,7 +263,7 @@ export function AptitudeApp() {
 
   function saveResponse(
     response: ResponseRecord,
-    field: "ability" | "energy" | "importance" | "note",
+    field: "ability" | "energy" | "criticality" | "note",
   ) {
     const current = profileRef.current?.responses.find((item) => item.id === response.id);
     if (!current) return;
@@ -374,7 +374,7 @@ export function AptitudeApp() {
         <div className="brand">
           <span className="eyebrow">APTITUDE MAP</span>
           <h1>Know what to own.</h1>
-          <p>Ability, energy, and importance across a living capability map.</p>
+          <p>Ability, energy, and outcome criticality across a living capability map.</p>
         </div>
 
         <div className="progress-block">
@@ -394,7 +394,7 @@ export function AptitudeApp() {
             );
             const rated = questions.filter((question) => {
               const response = responseFor(question.id);
-              return response?.ability !== null && response?.energy !== null && response?.importance !== null;
+              return response?.ability !== null && response?.energy !== null && response?.criticality !== null;
             }).length;
             return (
               <div className="set-nav-row" key={questionSet.id}>
@@ -588,11 +588,11 @@ export function AptitudeApp() {
                         onBlur={() => saveResponse(response, "energy")}
                       />
                       <RatingSelect
-                        label="I · Importance"
-                        value={response.importance}
-                        options={importanceOptions}
-                        onChange={(value) => updateResponse(response, "importance", value)}
-                        onBlur={() => saveResponse(response, "importance")}
+                        label="C · Criticality"
+                        value={response.criticality}
+                        options={criticalityOptions}
+                        onChange={(value) => updateResponse(response, "criticality", value)}
+                        onBlur={() => saveResponse(response, "criticality")}
                       />
                       <label className="field note-field">
                         <span>Notes</span>
@@ -623,7 +623,7 @@ export function AptitudeApp() {
               <footer className="scale-legend">
                 <div><strong>A</strong> 0 none · 3 independent · 5 distinctive</div>
                 <div><strong>E</strong> -2 hate · 0 neutral · 2 love</div>
-                <div><strong>I</strong> 0 irrelevant · 2 important · 3 critical</div>
+                <div><strong>C</strong> 0 irrelevant · 2 material · 3 mission-critical</div>
               </footer>
             )}
           </>

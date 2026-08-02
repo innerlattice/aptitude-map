@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Aptitude Map",
-  description: "Map ability, energy, and importance across a living ontology.",
+  description: "Map ability, energy, and outcome criticality across a living ontology.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

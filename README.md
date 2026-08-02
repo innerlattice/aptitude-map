@@ -1,7 +1,7 @@
 # Aptitude Map
 
 A local-first assessment app for maintaining a living capability ontology and
-rating each capability by ability, energy, and importance.
+rating each capability by ability, energy, and outcome criticality.
 
 ## Run locally
 
@@ -18,10 +18,12 @@ schema-versioned snapshot.
 
 - Ability: `0` none through `5` distinctive; blank means untested.
 - Energy: `-2` hate through `2` love; blank means untested.
-- Importance: `0` irrelevant through `3` critical; blank means unset.
+- Criticality: how important it is that the capability's outcome exists in your
+  life or work over the next 12–24 months, regardless of who performs it.
+  `0` irrelevant, `1` useful, `2` material, `3` mission-critical; blank means unset.
 
 Native selects preserve browser keyboard behavior: Tab moves through Ability,
-Energy, Importance, and Notes; typing a number selects the matching option.
+Energy, Criticality, and Notes; typing a number selects the matching option.
 Fields save when focus leaves them.
 
 ## Data model

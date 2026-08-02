@@ -1,7 +1,7 @@
 export const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS profiles (
     id TEXT PRIMARY KEY NOT NULL,
-    schema_version INTEGER NOT NULL DEFAULT 1,
+    schema_version INTEGER NOT NULL DEFAULT 2,
     title TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -37,7 +37,7 @@ export const schemaStatements = [
     question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
     ability INTEGER CHECK (ability IS NULL OR (ability >= 0 AND ability <= 5)),
     energy INTEGER CHECK (energy IS NULL OR (energy >= -2 AND energy <= 2)),
-    importance INTEGER CHECK (importance IS NULL OR (importance >= 0 AND importance <= 3)),
+    criticality INTEGER CHECK (criticality IS NULL OR (criticality >= 0 AND criticality <= 3)),
     note TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
