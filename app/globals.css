@@ -175,6 +175,9 @@ a:focus-visible {
 }
 
 .text-link { color: var(--accent); font-size: 0.75rem; font-weight: 750; padding: 7px 2px; text-decoration: none; }
+.text-button { background: transparent; border: 0; color: var(--accent); font-size: 0.72rem; padding: 4px 2px; text-align: left; }
+.paste-import { display: grid; gap: 8px; }
+.paste-import textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem; max-height: 140px; }
 
 .content {
   margin-left: 310px;

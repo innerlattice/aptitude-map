@@ -153,6 +153,8 @@ export function AptitudeApp() {
   const [errorMessage, setErrorMessage] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [pasteImportOpen, setPasteImportOpen] = useState(false);
+  const [pastedJson, setPastedJson] = useState("");
   const saveTail = useRef<Promise<void>>(Promise.resolve());
   const saveVersion = useRef(0);
   const importInput = useRef<HTMLInputElement | null>(null);
@@ -356,19 +358,15 @@ export function AptitudeApp() {
     });
   }
 
-  async function importJson(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-
+  async function restoreJson(rawJson: string) {
     if (!window.confirm("Replace this profile with the selected JSON export? Export the current profile first if you need a backup.")) {
-      return;
+      return false;
     }
 
     setSaveState("saving");
     setErrorMessage("");
     try {
-      const imported = JSON.parse(await file.text());
+      const imported = JSON.parse(rawJson);
       const response = await fetch("/api/import", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -388,9 +386,29 @@ export function AptitudeApp() {
         setSelectedSetId(firstActive?.id ?? loaded.questionSets[0]?.id ?? null);
       }
       setSaveState("saved");
+      return true;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "The profile could not be imported.");
       setSaveState("error");
+      return false;
+    }
+  }
+
+  async function importJson(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) await restoreJson(await file.text());
+  }
+
+  async function importPastedJson() {
+    if (!pastedJson.trim()) {
+      setErrorMessage("Paste a JSON export before restoring it.");
+      setSaveState("error");
+      return;
+    }
+    if (await restoreJson(pastedJson)) {
+      setPastedJson("");
+      setPasteImportOpen(false);
     }
   }
 
@@ -492,6 +510,28 @@ export function AptitudeApp() {
             accept="application/json,.json"
             onChange={importJson}
           />
+          <button
+            className="text-button"
+            onClick={() => setPasteImportOpen((value) => !value)}
+          >
+            {pasteImportOpen ? "Cancel paste import" : "Paste JSON instead"}
+          </button>
+          {pasteImportOpen && (
+            <div className="paste-import">
+              <label className="field">
+                <span>JSON profile export</span>
+                <textarea
+                  rows={4}
+                  value={pastedJson}
+                  onChange={(event) => setPastedJson(event.target.value)}
+                  placeholder="Paste the exported JSON here…"
+                />
+              </label>
+              <button className="secondary-button" onClick={importPastedJson}>
+                Restore pasted JSON
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
