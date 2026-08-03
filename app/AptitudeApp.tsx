@@ -2,7 +2,7 @@
 
 import {
   type ChangeEvent,
-  type KeyboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   useEffect,
   useMemo,
   useRef,
@@ -85,7 +85,7 @@ function RatingSelect({
   const keyBuffer = useRef("");
   const keyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function handleNumericTypeahead(event: KeyboardEvent<HTMLSelectElement>) {
+  function handleNumericTypeahead(event: ReactKeyboardEvent<HTMLSelectElement>) {
     if (!/^[0-9-]$/.test(event.key)) return;
 
     const candidate = `${keyBuffer.current}${event.key}`;
@@ -161,6 +161,8 @@ export function AptitudeApp({
   const [showArchived, setShowArchived] = useState(false);
   const [pasteImportOpen, setPasteImportOpen] = useState(false);
   const [pastedJson, setPastedJson] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const saveTail = useRef<Promise<void>>(Promise.resolve());
   const saveVersion = useRef(0);
   const importInput = useRef<HTMLInputElement | null>(null);
@@ -184,6 +186,32 @@ export function AptitudeApp({
         setSaveState("error");
       });
   }, []);
+
+  useEffect(() => {
+    function updateScrollControl() {
+      setShowScrollTop(window.scrollY > 560);
+    }
+
+    updateScrollControl();
+    window.addEventListener("scroll", updateScrollControl, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrollControl);
+  }, []);
+
+  useEffect(() => {
+    if (!helpOpen) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setHelpOpen(false);
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [helpOpen]);
+
+  function scrollToTop() {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+  }
 
   function updateLocal(mutator: (draft: AptitudeProfile) => void) {
     if (!profileRef.current) return null;
@@ -434,9 +462,54 @@ export function AptitudeApp({
     <div className="app-shell">
       <SaveIndicator state={saveState} />
 
+      {helpOpen && (
+        <div className="help-backdrop" onMouseDown={() => setHelpOpen(false)}>
+          <section
+            className="help-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="help-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              className="help-close"
+              aria-label="Close help"
+              onClick={() => setHelpOpen(false)}
+              autoFocus
+            >
+              ×
+            </button>
+            <span className="eyebrow">ABOUT THIS MAP</span>
+            <h2 id="help-title">Turn reflection into useful data.</h2>
+            <p>
+              Aptitude Map captures what you can do, what gives or drains your
+              energy, and which outcomes matter enough to protect.
+            </p>
+            <ul>
+              <li><strong>Learn about yourself:</strong> notice strengths, gaps, preferences, and learning edges.</li>
+              <li><strong>Build a digital twin:</strong> give trusted AI a grounded model of where to assist, defer, learn, or act.</li>
+              <li><strong>Delegate and grow:</strong> identify work to keep, outsource, automate, or deliberately practice.</li>
+              <li><strong>Make it yours:</strong> edit the ontology so it reflects your domains, language, and changing life.</li>
+            </ul>
+            <div className="help-scale"><strong>A</strong> ability · <strong>E</strong> energy · <strong>C</strong> outcome criticality</div>
+            <p className="help-note">This is reflection, not diagnosis. Treat every rating as a revisable hypothesis.</p>
+          </section>
+        </div>
+      )}
+
       <aside className="sidebar">
         <div className="brand">
-          <span className="eyebrow">APTITUDE MAP</span>
+          <div className="brand-topline">
+            <span className="eyebrow">APTITUDE MAP</span>
+            <button
+              className="help-trigger"
+              aria-label="What is Aptitude Map for?"
+              title="What is this for?"
+              onClick={() => setHelpOpen(true)}
+            >
+              ?
+            </button>
+          </div>
           <h1>Know what to own.</h1>
           <p>Ability, energy, and outcome criticality across a living capability map.</p>
         </div>
@@ -732,6 +805,17 @@ export function AptitudeApp({
           <div className="empty-state">Choose a question set to begin.</div>
         )}
       </main>
+
+      {showScrollTop && (
+        <button
+          className="scroll-top-button"
+          aria-label="Scroll to top"
+          title="Scroll to top"
+          onClick={scrollToTop}
+        >
+          <span aria-hidden="true">↑</span>
+        </button>
+      )}
     </div>
   );
 }
