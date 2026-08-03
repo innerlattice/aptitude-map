@@ -333,9 +333,9 @@ export async function ensureDatabase(ownerIdInput: string) {
     const legacyProfileId = legacyProfiles.results[0].id;
     await db
       .prepare(
-        "UPDATE profiles SET owner_id = ?, updated_at = ? WHERE id = ? AND owner_id IS NULL",
+        "UPDATE profiles SET owner_id = ? WHERE id = ? AND owner_id IS NULL",
       )
-      .bind(ownerId, now(), legacyProfileId)
+      .bind(ownerId, legacyProfileId)
       .run();
     const claimed = await db
       .prepare("SELECT id FROM profiles WHERE owner_id = ?")
