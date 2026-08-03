@@ -84,6 +84,12 @@ function requireString(value: unknown, field: string, limit: number) {
   return value;
 }
 
+function requireOwnerId(value: unknown) {
+  const ownerId = requireNonEmpty(value, "ownerId");
+  if (ownerId.length > 512) throw new Error("ownerId exceeds 512 characters.");
+  return ownerId;
+}
+
 function requireUniqueIds(records: Array<{ id: string }>, field: string) {
   if (new Set(records.map((record) => record.id)).size !== records.length) {
     throw new Error(`${field} contains duplicate UUIDs.`);
@@ -100,18 +106,41 @@ function chunks<T>(items: T[], size: number) {
 
 async function migrateDatabase() {
   const db = env.DB;
-  const columns = await db
+  const responseColumns = await db
     .prepare("PRAGMA table_info(responses)")
     .all<{ name: string }>();
-  const columnNames = new Set(columns.results.map((column) => column.name));
+  const responseColumnNames = new Set(
+    responseColumns.results.map((column) => column.name),
+  );
 
-  if (columnNames.has("importance") && !columnNames.has("criticality")) {
+  if (
+    responseColumnNames.has("importance") &&
+    !responseColumnNames.has("criticality")
+  ) {
     await db.prepare("ALTER TABLE responses RENAME COLUMN importance TO criticality").run();
-  } else if (columnNames.has("importance") && columnNames.has("criticality")) {
+  } else if (
+    responseColumnNames.has("importance") &&
+    responseColumnNames.has("criticality")
+  ) {
     await db
       .prepare("UPDATE responses SET criticality = COALESCE(criticality, importance)")
       .run();
   }
+
+  const profileColumns = await db
+    .prepare("PRAGMA table_info(profiles)")
+    .all<{ name: string }>();
+  const profileColumnNames = new Set(
+    profileColumns.results.map((column) => column.name),
+  );
+  if (!profileColumnNames.has("owner_id")) {
+    await db.prepare("ALTER TABLE profiles ADD COLUMN owner_id TEXT").run();
+  }
+  await db
+    .prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_owner_id ON profiles(owner_id)",
+    )
+    .run();
 
   const timestamp = now();
   await db.batch([
@@ -190,32 +219,20 @@ async function migrateDatabase() {
     .run();
 }
 
-export async function ensureDatabase() {
+async function createSeededProfile(ownerId: string) {
   const db = env.DB;
-  if (!db) {
-    throw new Error("The local database binding is unavailable.");
-  }
-
-  await db.batch(schemaStatements.map((statement) => db.prepare(statement)));
-  await db.prepare("PRAGMA foreign_keys = ON").run();
-  await migrateDatabase();
-
-  const existing = await db
-    .prepare("SELECT id FROM profiles ORDER BY created_at LIMIT 1")
-    .first<{ id: string }>();
-
-  if (existing) return existing.id;
-
   const profileId = randomUUID();
   const timestamp = now();
   const writes = [
     db
       .prepare(
-        `INSERT INTO profiles (id, schema_version, title, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO profiles
+          (id, owner_id, schema_version, title, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         profileId,
+        ownerId,
         CURRENT_SCHEMA_VERSION,
         DEFAULT_PROFILE_TITLE,
         timestamp,
@@ -276,9 +293,58 @@ export async function ensureDatabase() {
     });
   });
 
-  await db.batch(writes);
+  try {
+    await db.batch(writes);
+  } catch (error) {
+    const concurrent = await db
+      .prepare("SELECT id FROM profiles WHERE owner_id = ?")
+      .bind(ownerId)
+      .first<{ id: string }>();
+    if (concurrent) return concurrent.id;
+    throw error;
+  }
   await db.prepare("PRAGMA optimize").run();
   return profileId;
+}
+
+export async function ensureDatabase(ownerIdInput: string) {
+  const db = env.DB;
+  if (!db) {
+    throw new Error("The local database binding is unavailable.");
+  }
+  const ownerId = requireOwnerId(ownerIdInput);
+
+  await db.batch(schemaStatements.map((statement) => db.prepare(statement)));
+  await db.prepare("PRAGMA foreign_keys = ON").run();
+  await migrateDatabase();
+
+  const existing = await db
+    .prepare("SELECT id FROM profiles WHERE owner_id = ?")
+    .bind(ownerId)
+    .first<{ id: string }>();
+  if (existing) return existing.id;
+
+  const legacyProfiles = await db
+    .prepare(
+      "SELECT id FROM profiles WHERE owner_id IS NULL ORDER BY created_at LIMIT 2",
+    )
+    .all<{ id: string }>();
+  if (legacyProfiles.results.length === 1) {
+    const legacyProfileId = legacyProfiles.results[0].id;
+    await db
+      .prepare(
+        "UPDATE profiles SET owner_id = ?, updated_at = ? WHERE id = ? AND owner_id IS NULL",
+      )
+      .bind(ownerId, now(), legacyProfileId)
+      .run();
+    const claimed = await db
+      .prepare("SELECT id FROM profiles WHERE owner_id = ?")
+      .bind(ownerId)
+      .first<{ id: string }>();
+    if (claimed) return claimed.id;
+  }
+
+  return createSeededProfile(ownerId);
 }
 
 function mapProfile(row: Record<string, unknown>): ProfileRecord {
@@ -336,8 +402,8 @@ function mapResponse(row: Record<string, unknown>): ResponseRecord {
   };
 }
 
-export async function loadProfile(): Promise<AptitudeProfile> {
-  const profileId = await ensureDatabase();
+export async function loadProfile(ownerId: string): Promise<AptitudeProfile> {
+  const profileId = await ensureDatabase(ownerId);
   const db = env.DB;
 
   const [profileRow, setRows, questionRows, responseRows] = await Promise.all([
@@ -492,19 +558,30 @@ function validateImportedProfile(value: unknown): AptitudeProfile {
   };
 }
 
-export async function importProfile(value: unknown): Promise<AptitudeProfile> {
+export async function importProfile(
+  ownerIdInput: string,
+  value: unknown,
+): Promise<AptitudeProfile> {
   const imported = validateImportedProfile(value);
-  await ensureDatabase();
+  const ownerId = requireOwnerId(ownerIdInput);
+  const profileId = await ensureDatabase(ownerId);
+  if (imported.profile.id !== profileId) {
+    throw new Error("This JSON export belongs to a different aptitude profile.");
+  }
   const db = env.DB;
   const writes = [
-    db.prepare("DELETE FROM profiles"),
+    db
+      .prepare("DELETE FROM profiles WHERE id = ? AND owner_id = ?")
+      .bind(profileId, ownerId),
     db
       .prepare(
-        `INSERT INTO profiles (id, schema_version, title, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO profiles
+          (id, owner_id, schema_version, title, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         imported.profile.id,
+        ownerId,
         CURRENT_SCHEMA_VERSION,
         imported.profile.title,
         imported.profile.createdAt,
@@ -588,7 +665,7 @@ export async function importProfile(value: unknown): Promise<AptitudeProfile> {
 
   await db.batch(writes);
   await db.prepare("PRAGMA optimize").run();
-  return loadProfile();
+  return loadProfile(ownerId);
 }
 
 function validateRating(field: string, value: unknown) {
@@ -613,14 +690,80 @@ async function touchProfile(profileId: string, timestamp: string) {
     .run();
 }
 
-export async function applyMutation(input: Mutation): Promise<AptitudeProfile> {
-  const profileId = await ensureDatabase();
+async function assertQuestionSetOwned(profileId: string, questionSetId: string) {
+  const owned = await env.DB
+    .prepare("SELECT 1 FROM question_sets WHERE id = ? AND profile_id = ?")
+    .bind(questionSetId, profileId)
+    .first();
+  if (!owned) throw new Error("Question set not found in your aptitude map.");
+}
+
+async function assertQuestionOwned(profileId: string, questionId: string) {
+  const owned = await env.DB
+    .prepare(
+      `SELECT 1 FROM questions q
+       JOIN question_sets s ON s.id = q.question_set_id
+       WHERE q.id = ? AND s.profile_id = ?`,
+    )
+    .bind(questionId, profileId)
+    .first();
+  if (!owned) throw new Error("Question not found in your aptitude map.");
+}
+
+async function assertResponseOwned(profileId: string, responseId: string) {
+  const owned = await env.DB
+    .prepare(
+      `SELECT 1 FROM responses r
+       JOIN questions q ON q.id = r.question_id
+       JOIN question_sets s ON s.id = q.question_set_id
+       WHERE r.id = ? AND s.profile_id = ?`,
+    )
+    .bind(responseId, profileId)
+    .first();
+  if (!owned) throw new Error("Response not found in your aptitude map.");
+}
+
+async function assertQuestionSetsOwned(profileId: string, ids: string[]) {
+  const placeholders = ids.map(() => "?").join(", ");
+  const row = await env.DB
+    .prepare(
+      `SELECT COUNT(*) AS owned_count FROM question_sets
+       WHERE profile_id = ? AND id IN (${placeholders})`,
+    )
+    .bind(profileId, ...ids)
+    .first<{ owned_count: number }>();
+  if (Number(row?.owned_count ?? 0) !== ids.length) {
+    throw new Error("Every reordered question set must belong to your aptitude map.");
+  }
+}
+
+async function assertQuestionsOwned(questionSetId: string, ids: string[]) {
+  const placeholders = ids.map(() => "?").join(", ");
+  const row = await env.DB
+    .prepare(
+      `SELECT COUNT(*) AS owned_count FROM questions
+       WHERE question_set_id = ? AND id IN (${placeholders})`,
+    )
+    .bind(questionSetId, ...ids)
+    .first<{ owned_count: number }>();
+  if (Number(row?.owned_count ?? 0) !== ids.length) {
+    throw new Error("Every reordered question must belong to this question set.");
+  }
+}
+
+export async function applyMutation(
+  ownerIdInput: string,
+  input: Mutation,
+): Promise<AptitudeProfile> {
+  const ownerId = requireOwnerId(ownerIdInput);
+  const profileId = await ensureDatabase(ownerId);
   const db = env.DB;
   const timestamp = now();
 
   switch (input.type) {
     case "updateResponse": {
       const id = requireUuid(input.responseId, "responseId");
+      await assertResponseOwned(profileId, id);
       if (!["ability", "energy", "criticality", "note"].includes(input.field)) {
         throw new Error("Unknown response field.");
       }
@@ -638,6 +781,7 @@ export async function applyMutation(input: Mutation): Promise<AptitudeProfile> {
 
     case "updateQuestionSet": {
       const id = requireUuid(input.questionSetId, "questionSetId");
+      await assertQuestionSetOwned(profileId, id);
       const fieldMap = {
         code: "code",
         title: "title",
@@ -658,6 +802,7 @@ export async function applyMutation(input: Mutation): Promise<AptitudeProfile> {
 
     case "updateQuestion": {
       const id = requireUuid(input.questionId, "questionId");
+      await assertQuestionOwned(profileId, id);
       const fieldMap = { code: "code", title: "title", detail: "detail" } as const;
       const column = fieldMap[input.field];
       if (!column) throw new Error("Unknown question field.");
@@ -693,6 +838,7 @@ export async function applyMutation(input: Mutation): Promise<AptitudeProfile> {
 
     case "addQuestion": {
       const questionSetId = requireUuid(input.questionSetId, "questionSetId");
+      await assertQuestionSetOwned(profileId, questionSetId);
       const row = await db
         .prepare(
           "SELECT COALESCE(MAX(position), -1) + 1 AS next_position FROM questions WHERE question_set_id = ?",
@@ -729,6 +875,7 @@ export async function applyMutation(input: Mutation): Promise<AptitudeProfile> {
 
     case "setQuestionSetArchived": {
       const id = requireUuid(input.questionSetId, "questionSetId");
+      await assertQuestionSetOwned(profileId, id);
       await db
         .prepare("UPDATE question_sets SET archived_at = ?, updated_at = ? WHERE id = ?")
         .bind(input.archived ? timestamp : null, timestamp, id)
@@ -738,6 +885,7 @@ export async function applyMutation(input: Mutation): Promise<AptitudeProfile> {
 
     case "setQuestionArchived": {
       const id = requireUuid(input.questionId, "questionId");
+      await assertQuestionOwned(profileId, id);
       await db
         .prepare("UPDATE questions SET archived_at = ?, updated_at = ? WHERE id = ?")
         .bind(input.archived ? timestamp : null, timestamp, id)
@@ -747,6 +895,7 @@ export async function applyMutation(input: Mutation): Promise<AptitudeProfile> {
 
     case "reorderQuestionSets": {
       const ids = requireOrderedIds(input.orderedIds);
+      await assertQuestionSetsOwned(profileId, ids);
       await db.batch(
         ids.map((id, position) =>
           db
@@ -760,6 +909,8 @@ export async function applyMutation(input: Mutation): Promise<AptitudeProfile> {
     case "reorderQuestions": {
       const questionSetId = requireUuid(input.questionSetId, "questionSetId");
       const ids = requireOrderedIds(input.orderedIds);
+      await assertQuestionSetOwned(profileId, questionSetId);
+      await assertQuestionsOwned(questionSetId, ids);
       await db.batch(
         ids.map((id, position) =>
           db
@@ -777,5 +928,5 @@ export async function applyMutation(input: Mutation): Promise<AptitudeProfile> {
   }
 
   await touchProfile(profileId, timestamp);
-  return loadProfile();
+  return loadProfile(ownerId);
 }

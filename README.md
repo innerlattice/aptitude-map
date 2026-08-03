@@ -1,7 +1,12 @@
 # Aptitude Map
 
-A local-first assessment app for maintaining a living capability ontology and
-rating each capability by ability, energy, and outcome criticality.
+An identity-aware assessment app for maintaining a living capability ontology
+and rating each capability by ability, energy, and outcome criticality.
+
+The hosted Site is public, but saved maps require ChatGPT sign-in. The platform
+provides a stable Site-specific user ID; all profile, ontology, response,
+import, and export operations are scoped to that ID on the server. A newly
+signed-in user receives an independent copy of the starter ontology.
 
 ## Run locally
 
@@ -10,10 +15,12 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. The local D1 database persists under the ignored
-`.wrangler/` directory. Use **Export JSON** in the app to download a portable,
-schema-versioned snapshot. **Import JSON** validates and atomically restores a
-snapshot, including its stable UUIDs, ratings, notes, ordering, and archive state.
+Open <http://localhost:3000>. Hosted identity headers are absent locally, so
+the default local page shows the sign-in screen. The local D1 database persists
+under the ignored `.wrangler/` directory. Use **Export JSON** in the app to
+download a portable, schema-versioned snapshot. **Import JSON** validates and
+atomically restores a snapshot for the same owned profile, including its stable
+UUIDs, ratings, notes, ordering, and archive state.
 
 ## Rating scales
 
@@ -29,7 +36,7 @@ Fields save when focus leaves them.
 
 ## Data model
 
-- `profiles`: schema version and profile lifecycle.
+- `profiles`: schema version, private owner key, and profile lifecycle.
 - `question_sets`: editable ontology domains, each with a UUID.
 - `questions`: editable capability records, each with a UUID and archive lifecycle.
 - `responses`: one rating and note record per question.

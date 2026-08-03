@@ -1,6 +1,7 @@
 export const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS profiles (
     id TEXT PRIMARY KEY NOT NULL,
+    owner_id TEXT,
     schema_version INTEGER NOT NULL DEFAULT 2,
     title TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,

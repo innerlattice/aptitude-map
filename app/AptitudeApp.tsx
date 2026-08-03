@@ -145,7 +145,13 @@ function move<T>(items: T[], index: number, offset: number) {
   return next;
 }
 
-export function AptitudeApp() {
+export function AptitudeApp({
+  accountLabel,
+  signOutHref,
+}: {
+  accountLabel: string;
+  signOutHref: string;
+}) {
   const [profile, setProfile] = useState<AptitudeProfile | null>(null);
   const profileRef = useRef<AptitudeProfile | null>(null);
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
@@ -476,6 +482,11 @@ export function AptitudeApp() {
         </nav>
 
         <div className="sidebar-actions">
+          <div className="account-panel">
+            <span>Your private map</span>
+            <strong title={accountLabel}>{accountLabel}</strong>
+            <a href={signOutHref}>Sign out</a>
+          </div>
           <button className="secondary-button" onClick={() => setEditMode((value) => !value)}>
             {editMode ? "Done editing" : "Edit ontology"}
           </button>

@@ -7,13 +7,18 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
-export const profiles = sqliteTable("profiles", {
-  id: text("id").primaryKey(),
-  schemaVersion: integer("schema_version").notNull().default(2),
-  title: text("title").notNull(),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-});
+export const profiles = sqliteTable(
+  "profiles",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id"),
+    schemaVersion: integer("schema_version").notNull().default(2),
+    title: text("title").notNull(),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [uniqueIndex("idx_profiles_owner_id").on(table.ownerId)],
+);
 
 export const questionSets = sqliteTable(
   "question_sets",
