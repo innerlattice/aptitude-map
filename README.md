@@ -1,52 +1,86 @@
 # Aptitude Map
 
-An identity-aware assessment app for maintaining a living capability ontology
-and rating each capability by ability, energy, and outcome criticality.
+Aptitude Map is a living inventory of what you can do, what gives or drains
+energy, and which outcomes matter enough to require action. It is designed for
+personal reflection and for building a trustworthy human profile that can guide
+learning, delegation, outsourcing, and eventually a personal digital twin.
 
-The hosted Site is public, but saved maps require ChatGPT sign-in. The platform
-provides a stable Site-specific user ID; all profile, ontology, response,
-import, and export operations are scoped to that ID on the server. A newly
-signed-in user receives an independent copy of the starter ontology.
+Use the hosted app at [aptitude-map.exobyt.chatgpt.site](https://aptitude-map.exobyt.chatgpt.site).
+The site is public; each person's saved map is private to their ChatGPT sign-in.
+
+## What you record
+
+Each capability belongs to an editable ontology and has a stable UUID. You can
+change the ontology without losing the identity of existing questions or
+responses. Every capability can be assessed on three independent dimensions:
+
+- **Ability (A):** `0` none to `5` distinctive; blank means untested.
+- **Energy (E):** `-2` hate to `2` love; blank means untested.
+- **Criticality (C):** how important it is that the outcome exists in your life
+  or work over the next 12–24 months, regardless of who performs it. `0` is
+  irrelevant, `1` useful, `2` material, and `3` mission-critical.
+
+Notes capture evidence, context, preferences, and learning edges. Native form
+controls preserve browser affordances: Tab moves through fields, number keys
+select ratings, and a field saves when focus leaves it.
+
+## Privacy and ownership
+
+The hosted app uses a stable, site-specific ChatGPT user ID. Profile reads,
+writes, ontology edits, imports, and exports are scoped to that ID on the
+server. A new user receives an independent copy of the starter ontology.
+
+Personal profiles are data, not source code. This repository contains the app,
+the generic starter ontology, the schema, and migrations. It intentionally
+excludes local D1 state, exported profiles, backups, secrets, and runtime output
+through [`.gitignore`](.gitignore). Keep exported JSON out of source control;
+it may contain your complete ratings and notes.
+
+Use **Export JSON** for a portable, schema-versioned backup. **Import JSON**
+validates and atomically restores the profile, including stable UUIDs, ratings,
+notes, ordering, and archive state.
 
 ## Run locally
 
+Requirements: Node.js 22.13 or newer and npm.
+
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-Open <http://localhost:3000>. Hosted identity headers are absent locally, so
-the default local page shows the sign-in screen. The local D1 database persists
-under the ignored `.wrangler/` directory. Use **Export JSON** in the app to
-download a portable, schema-versioned snapshot. **Import JSON** validates and
-atomically restores a snapshot for the same owned profile, including its stable
-UUIDs, ratings, notes, ordering, and archive state.
+Open <http://localhost:3000>. Hosted identity headers are not present during
+ordinary local development, so the app shows its sign-in screen. Local D1 data
+is stored under the ignored `.wrangler/` directory.
 
-## Rating scales
+## Architecture
 
-- Ability: `0` none through `5` distinctive; blank means untested.
-- Energy: `-2` hate through `2` love; blank means untested.
-- Criticality: how important it is that the capability's outcome exists in your
-  life or work over the next 12–24 months, regardless of who performs it.
-  `0` irrelevant, `1` useful, `2` material, `3` mission-critical; blank means unset.
+- `app/` contains the Next-compatible UI and profile, import, and export routes.
+- `lib/` owns the generic ontology, profile operations, and wire types.
+- `db/` defines the canonical Drizzle schema and runtime bootstrap SQL.
+- `drizzle/` contains versioned SQL migrations and migration metadata.
+- `worker/` and `build/` adapt the app to a Cloudflare Worker deployment.
+- `.openai/hosting.json` identifies the OpenAI Sites project and logical D1
+  binding; it does not contain user records or credentials.
 
-Native selects preserve browser keyboard behavior: Tab moves through Ability,
-Energy, Criticality, and Notes; typing a number selects the matching option.
-Fields save when focus leaves them.
+The persistent model has four concepts:
 
-## Data model
+- `profiles` — owner identity, schema version, and profile lifecycle.
+- `question_sets` — editable ontology domains with stable UUIDs.
+- `questions` — editable capability records with stable UUIDs and archive state.
+- `responses` — one set of ratings and notes per capability.
 
-- `profiles`: schema version, private owner key, and profile lifecycle.
-- `question_sets`: editable ontology domains, each with a UUID.
-- `questions`: editable capability records, each with a UUID and archive lifecycle.
-- `responses`: one rating and note record per question.
+The canonical schema is [`db/schema.ts`](db/schema.ts). Keep
+[`db/schema-sql.ts`](db/schema-sql.ts) synchronized with generated migrations
+when the data model changes.
 
-The canonical schema is [db/schema.ts](db/schema.ts). Generated SQL migrations
-live under `drizzle/`. Runtime initialization uses the matching idempotent SQL
-in [db/schema-sql.ts](db/schema-sql.ts).
+## Development
 
-## Commands
+```bash
+npm test             # lint and production build
+npm run db:generate  # generate a migration after a schema change
+```
 
-- `npm run dev` — start the local app.
-- `npm run db:generate` — generate a migration after schema changes.
-- `npm test` — lint and build.
+Deployments use OpenAI Sites with the project configuration already stored in
+`.openai/hosting.json`. Run `npm test` before publishing. Schema changes must
+include and verify their generated migration.
