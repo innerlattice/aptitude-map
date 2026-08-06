@@ -2,8 +2,10 @@
   "name": "aptitude-map",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@12.0.2",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24.19.0 <25",
+    "npm": ">=12.0.2 <13"
   },
   "scripts": {
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
@@ -22,7 +24,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
     "@tailwindcss/postcss": "4.2.1",
-    "@types/node": "22.19.19",
+    "@types/node": "24.10.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
