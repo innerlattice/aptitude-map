@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/innerlattice/aptitude-map/schemas/capability-routing.schema.json",
+  "title": "Capability routing overlay",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "baselineVersion",
+    "createdAt",
+    "sourceSha256",
+    "policyVersion",
+    "routeDefinitions",
+    "capabilities"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "baselineVersion": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "sourceSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "policyVersion": { "const": "1.0.0" },
+    "routeDefinitions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["own-distill", "learn-govern", "delegate-automate", "avoid-defer"],
+      "properties": {
+        "own-distill": { "type": "string", "minLength": 1 },
+        "learn-govern": { "type": "string", "minLength": 1 },
+        "delegate-automate": { "type": "string", "minLength": 1 },
+        "avoid-defer": { "type": "string", "minLength": 1 }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/capability" }
+    }
+  },
+  "$defs": {
+    "route": {
+      "enum": ["own-distill", "learn-govern", "delegate-automate", "avoid-defer"]
+    },
+    "ratings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ability", "energy", "criticality"],
+      "properties": {
+        "ability": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "energy": { "type": "integer", "minimum": -2, "maximum": 2 },
+        "criticality": { "type": "integer", "minimum": 0, "maximum": 3 }
+      }
+    },
+    "facet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "route", "rationale"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "route": { "$ref": "#/$defs/route" },
+        "rationale": { "type": "string", "minLength": 1 }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "questionSetId", "code", "title", "ratings", "route", "rationale"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "questionSetId": { "type": "string", "format": "uuid" },
+        "code": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "ratings": { "$ref": "#/$defs/ratings" },
+        "route": { "$ref": "#/$defs/route" },
+        "rationale": { "type": "string", "minLength": 1 },
+        "facets": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 7,
+          "items": { "$ref": "#/$defs/facet" }
+        }
+      }
+    }
+  }
+}

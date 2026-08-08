@@ -1,0 +1,26 @@
+[
+  {
+    "id": "small-export-feature",
+    "prompt": "Add CSV export to the report page. Keep it small enough to ship today; do not redesign reporting.",
+    "expected": "Creates a bounded work contract, names CSV behavior and verification, excludes redesign and unrelated formats, controls discovered scope, and reports completion evidence rather than activity.",
+    "files": []
+  },
+  {
+    "id": "bounded-technology-research",
+    "prompt": "Research whether we should replace our queue. I tend to explore forever, so give me a decision by Friday without doing a migration.",
+    "expected": "Defines the decision and evidence threshold, timeboxes research, identifies non-goals, stops when the decision evidence is sufficient, and leaves migration work deferred.",
+    "files": []
+  },
+  {
+    "id": "midstream-scope-change",
+    "prompt": "While implementing password reset, we noticed account recovery is messy. Keep the original work moving and decide what to do with the new issue.",
+    "expected": "Classifies whether the issue is required, a defect, a later improvement, or unrelated; states impact and authority; then accepts, defers, or rejects it without silently expanding the contract.",
+    "files": []
+  },
+  {
+    "id": "interrupted-work-resume",
+    "prompt": "I need to stop this migration for two days. Preserve exactly enough state that another agent can resume safely.",
+    "expected": "Records current step, completed evidence, pending decisions, blockers, next action, relevant boundaries, and stop conditions without producing a long project history.",
+    "files": []
+  }
+]

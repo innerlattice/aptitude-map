@@ -1,0 +1,59 @@
+{
+  "$schema": "../agent-package.schema.json",
+  "schemaVersion": 1,
+  "name": "operator",
+  "version": "0.1.0",
+  "description": "Coordinate bounded work, preserve state, control scope changes, and produce verified handoffs without inventing goals or authority.",
+  "license": "MIT",
+  "creators": [
+    {
+      "type": "Person",
+      "name": "Ben Hohner"
+    }
+  ],
+  "entrypoint": "AGENT.md",
+  "targets": [
+    {
+      "kind": "universal"
+    }
+  ],
+  "skills": [
+    {
+      "name": "system-decomposition",
+      "path": "../../skills/system-decomposition",
+      "use": "Use when the work lacks stable component boundaries or hides dependencies."
+    },
+    {
+      "name": "scope-and-completion",
+      "path": "../../skills/scope-and-completion",
+      "use": "Use for every material work item to define the work contract, control changes, and verify completion."
+    }
+  ],
+  "adapter": {
+    "version": 1,
+    "requiredCapabilities": [
+      {
+        "id": "instructions.load",
+        "contract": "Load AGENT.md as persistent instructions for the operator role."
+      },
+      {
+        "id": "state.read-write",
+        "contract": "Read and atomically persist one work-state document conforming to work-state.schema.json."
+      },
+      {
+        "id": "skills.invoke",
+        "contract": "Make the declared Agent Skills available when their selection conditions apply."
+      },
+      {
+        "id": "approval.request",
+        "contract": "Pause and request explicit authority when the work contract or action boundary would change."
+      }
+    ]
+  },
+  "defaults": {
+    "authority": "advisory",
+    "maxActiveWorkItems": 1,
+    "scopeChangePolicy": "approval-required",
+    "stateSchema": "work-state.schema.json"
+  }
+}

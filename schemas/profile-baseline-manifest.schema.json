@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/innerlattice/aptitude-map/schemas/profile-baseline-manifest.schema.json",
+  "title": "Aptitude profile baseline manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "baselineVersion",
+    "createdAt",
+    "frozen",
+    "source",
+    "counts"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "baselineVersion": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "frozen": { "const": true },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "sha256", "exportSchemaVersion"],
+      "properties": {
+        "file": { "const": "aptitude-map.json" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "exportSchemaVersion": { "const": 2 }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["questionSets", "questions", "responses", "completeResponses"],
+      "properties": {
+        "questionSets": { "type": "integer", "minimum": 1 },
+        "questions": { "type": "integer", "minimum": 1 },
+        "responses": { "type": "integer", "minimum": 1 },
+        "completeResponses": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

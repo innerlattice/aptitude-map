@@ -1,0 +1,22 @@
+{
+  "shouldLoad": [
+    "keep this feature from expanding while you implement it",
+    "define done and ship the smallest coherent version",
+    "timebox this research and leave me a decision",
+    "write a resume packet before stopping",
+    "we found adjacent work; decide whether it belongs in scope",
+    "finish this without polishing unrelated things"
+  ],
+  "shouldNotLoad": [
+    "design the architecture for an unframed platform",
+    "brainstorm twenty possible products",
+    "explain what this function does",
+    "review this prose for grammar",
+    "list every future feature we could build",
+    "operate this recurring weekly process"
+  ],
+  "ambiguous": [
+    "plan this project",
+    "help me decide what the MVP is"
+  ]
+}

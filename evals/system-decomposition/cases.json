@@ -1,0 +1,26 @@
+[
+  {
+    "id": "notification-platform-boundaries",
+    "prompt": "Our application has email, SMS, push, templates, user preferences, scheduling, delivery retries, and analytics in one notification service. Decompose it so different parts can evolve safely without creating a dozen microservices.",
+    "expected": "Defines the outcome and constraints, proposes 3-7 peer components, separates policy from delivery volatility, assigns every responsibility once, states interfaces and dependencies, and does not equate components with deployment units.",
+    "files": []
+  },
+  {
+    "id": "research-to-decision-system",
+    "prompt": "Design the conceptual parts of a research system that finds sources, preserves them, extracts claims, assesses confidence, and produces decisions. Keep the ontology small and explain why the boundaries are stable.",
+    "expected": "Uses one level of abstraction, covers the full source-to-decision flow, identifies ownership of claims and evidence, separates parts with different change reasons, and avoids catch-all knowledge-management categories.",
+    "files": []
+  },
+  {
+    "id": "ambiguous-marketplace-change",
+    "prompt": "We need to add subscriptions to our marketplace. Break down the change before we decide what to build or buy.",
+    "expected": "Frames the outcome and unknowns before decomposition, includes customer, money, entitlement, lifecycle, and operational responsibilities without mixing vendors or implementation layers, and identifies decisions that require deeper decomposition.",
+    "files": []
+  },
+  {
+    "id": "stop-at-useful-depth",
+    "prompt": "Map every subsystem and sub-subsystem needed to operate a two-person software company.",
+    "expected": "Resists an exhaustive taxonomy, proposes a compact top-level map tied to the operating outcome, marks uncertainty, and decomposes only the component blocking a current decision.",
+    "files": []
+  }
+]

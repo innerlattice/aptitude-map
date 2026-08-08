@@ -1,0 +1,33 @@
+{
+  "manifestSchema": "https://raw.githubusercontent.com/innerlattice/skillmeta/schema-v0.3.0/src/skillmeta/schema/v0.3/skill.schema.json",
+  "name": "system-decomposition",
+  "version": "0.1.0",
+  "license": "MIT",
+  "creators": [
+    {
+      "type": "Person",
+      "name": "Ben Hohner",
+      "createdUsing": [
+        {
+          "model": {
+            "id": "openai/gpt-5.6-sol",
+            "configuration": {
+              "reasoningEffort": "xhigh"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/innerlattice/aptitude-map.git",
+    "path": "packages/skills/system-decomposition"
+  },
+  "targets": [
+    {
+      "kind": "universal"
+    }
+  ],
+  "requirements": []
+}

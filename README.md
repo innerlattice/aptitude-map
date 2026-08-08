@@ -45,6 +45,40 @@ Use **Export JSON** for a portable, schema-versioned backup. **Import JSON**
 validates and atomically restores the profile, including stable UUIDs, ratings,
 notes, ordering, and archive state.
 
+## Freeze a private baseline
+
+After completing a map, freeze the export before deriving learning or
+delegation decisions from it:
+
+```bash
+npm run profile:freeze -- \
+  --input private/aptitude-map-YYYY-MM-DD.json \
+  --output-dir private/profile/v1
+```
+
+The command validates that every capability has complete A/E/C ratings, copies
+the source without changing it, records a SHA-256 checksum, and creates an
+initial routing overlay. It never overwrites an existing baseline directory.
+The four routes are deliberately distinct: own and distill, learn enough to
+govern, delegate or automate, and avoid or defer.
+
+Everything under `private/` remains gitignored. The reusable schemas live in
+[`schemas/`](schemas/); they contain no personal profile data.
+
+When one broad capability contains parts that need different routes, record an
+ID-checked facet review and apply it without editing repeated JSON by hand:
+
+```bash
+npm run profile:review-routing -- \
+  --routing private/profile/v1/routing.json \
+  --overrides private/profile/v1/routing-overrides.json
+```
+
+The review command matches both UUID and capability code, removes stale facet
+reviews, creates a timestamped backup, and atomically replaces the derived
+routing file. Use facets only when their work would genuinely be routed to
+different owners.
+
 ## Run locally
 
 Requirements: Node.js 22.13 or newer and npm.
@@ -90,6 +124,13 @@ to its production URL. See the [OpenAI Sites documentation](https://learn.chatgp
 - `db/` defines the canonical Drizzle schema and runtime bootstrap SQL.
 - `drizzle/` contains versioned SQL migrations and migration metadata.
 - `worker/` and `build/` adapt the app to a Cloudflare Worker deployment.
+- `schemas/` defines portable contracts for frozen baselines, routing overlays,
+  and evidence claims.
+- `packages/` contains universal SkillMeta skills and a harness-independent
+  operator agent package; it contains no personal profile data.
+- `scripts/` and `tests/` implement and verify the private baseline workflow
+  and portable package checks.
+- `evals/` contains realistic behavior and selection cases outside the packages.
 - `.openai/hosting.example.json` declares portable storage binding names.
 - The ignored `.openai/hosting.json` links one local clone to its Sites project.
 

@@ -1,0 +1,22 @@
+{
+  "shouldLoad": [
+    "break this messy platform into stable subsystems",
+    "where should the boundaries be in this service?",
+    "give me a small ontology for the capabilities this business needs",
+    "separate the parts that change for different reasons",
+    "map responsibilities and dependencies before we design the API",
+    "this architecture has overlapping modules; restructure the concepts"
+  ],
+  "shouldNotLoad": [
+    "rename these three variables",
+    "write the five already-defined tasks into Linear",
+    "summarize this architecture document",
+    "fix the failing unit test",
+    "make a checklist from these exact acceptance criteria",
+    "draw the existing database tables without changing their boundaries"
+  ],
+  "ambiguous": [
+    "plan the implementation of this feature",
+    "organize these notes into sections"
+  ]
+}
